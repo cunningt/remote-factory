@@ -129,7 +129,7 @@ class PythonEvaluator:
 
         # Parse coverage only if tests were collected
         cov_frag: EvalFragment | None = None
-        total_match = re.search(r"TOTAL\s+\d+\s+\d+\s+(\d+)%", output)
+        total_match = re.search(r"TOTAL\s+(?:\d+\s+)+(\d+)%", output)
         if total_match:
             pct = int(total_match.group(1))
             cov_frag = EvalFragment(
