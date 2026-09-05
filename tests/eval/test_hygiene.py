@@ -1,5 +1,7 @@
 """Tests for factory.eval.hygiene — universal hygiene dimensions."""
 
+import sys
+
 from factory.eval.hygiene import (
     HYGIENE_WEIGHTS,
     _find_sub_projects,
@@ -57,6 +59,13 @@ class TestEvalTests:
         assert "Not detected" in result["details"]
 
     def test_python_project_with_tests(self, python_project):
+        # Materialise a project-local venv so interpreter resolution stays
+        # hermetic: without one the evaluator would shell out to `uv run`,
+        # which resolves the fixture's dependencies over the network.
+        venv_python = python_project / ".venv" / "bin" / "python"
+        venv_python.parent.mkdir(parents=True)
+        venv_python.symlink_to(sys.executable)
+
         result = eval_tests(python_project)
         assert result["name"] == "tests"
         # Should find and run the test

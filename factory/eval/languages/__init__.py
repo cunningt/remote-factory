@@ -31,12 +31,35 @@ def detect_primary_language(project_path: Path) -> str:
 def _aggregate(fragments: list[EvalFragment], dimension: str) -> dict:
     from factory.eval.hygiene import HYGIENE_WEIGHTS
 
+    if dimension not in ("tests", "lint", "type_check", "coverage"):
+        raise ValueError(f"Unknown dimension: {dimension}")
+
+    # Abstentions ("I could not measure this") are held out of the numeric
+    # aggregate so they can never drag a real measurement toward 0.0.
+    abstained = [f for f in fragments if f.neutral]
+    measured = [f for f in fragments if not f.neutral]
+
+    if not measured:
+        return {
+            "name": dimension,
+            "score": 0.5,
+            "weight": HYGIENE_WEIGHTS[dimension],
+            "passed": True,
+            "details": "Not measured: " + "; ".join(f.details for f in abstained),
+        }
+
+    fragments = measured
+    suffix = (
+        " | Not measured: " + "; ".join(f.details for f in abstained) if abstained else ""
+    )
+
     if dimension == "tests":
         total_passed = sum(f.passed for f in fragments)
         total_failed = sum(f.failed for f in fragments)
         total = total_passed + total_failed
         score = total_passed / total if total > 0 else 0.0
         details = "; ".join(f.details for f in fragments) or f"{total_passed} passed, {total_failed} failed"
+        details += suffix
         return {
             "name": "tests",
             "score": round(score, 4),
@@ -48,7 +71,7 @@ def _aggregate(fragments: list[EvalFragment], dimension: str) -> dict:
     if dimension == "lint":
         total_errors = sum(f.failed for f in fragments)
         score = max(0.0, 1.0 - total_errors * 0.1)
-        details = "; ".join(f.details for f in fragments)
+        details = "; ".join(f.details for f in fragments) + suffix
         return {
             "name": "lint",
             "score": round(score, 4),
@@ -60,7 +83,7 @@ def _aggregate(fragments: list[EvalFragment], dimension: str) -> dict:
     if dimension == "type_check":
         total_errors = sum(f.failed for f in fragments)
         score = max(0.0, 1.0 - total_errors * 0.05)
-        details = "; ".join(f.details for f in fragments)
+        details = "; ".join(f.details for f in fragments) + suffix
         return {
             "name": "type_check",
             "score": round(score, 4),
@@ -73,7 +96,7 @@ def _aggregate(fragments: list[EvalFragment], dimension: str) -> dict:
         coverages = [(f.details, f.coverage_pct) for f in fragments if f.coverage_pct is not None]
         avg_pct = sum(pct for _, pct in coverages) / len(coverages) if coverages else 0.0
         score = avg_pct / 100.0
-        details = ", ".join(f.details for f in fragments)
+        details = ", ".join(f.details for f in fragments) + suffix
         return {
             "name": "coverage",
             "score": round(score, 4),

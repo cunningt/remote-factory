@@ -15,13 +15,21 @@ log = structlog.get_logger()
 
 @dataclass
 class EvalFragment:
-    """Result fragment from a single evaluator dimension."""
+    """Result fragment from a single evaluator dimension.
+
+    ``neutral=True`` marks an *abstention*: the evaluator could not measure this
+    dimension (e.g. the project's interpreter could not be resolved). Abstentions
+    are excluded from the numeric aggregate and surface as a 0.5 score naming the
+    reason — never as 0.0, which would misreport "I could not measure" as
+    "this project failed".
+    """
 
     passed: int
     failed: int
     score: float
     details: str
     coverage_pct: float | None = None
+    neutral: bool = False
 
     def __post_init__(self) -> None:
         self.score = max(0.0, min(1.0, self.score))
